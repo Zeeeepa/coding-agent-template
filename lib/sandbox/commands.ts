@@ -1,4 +1,5 @@
-import { Sandbox } from '@vercel/sandbox'
+import { Sandbox } from './types'
+import { DaytonaWorkspace, runCommandInDaytonaWorkspace } from './daytona-client'
 
 export interface CommandResult {
   success: boolean
@@ -127,5 +128,50 @@ export async function runStreamingCommandInSandbox(
       error: errorMessage,
       command: fullCommand,
     }
+  }
+}
+
+// New functions for Daytona workspaces
+export async function runCommandInWorkspace(
+  workspace: DaytonaWorkspace,
+  command: string,
+  args: string[] = [],
+  options: { env?: Record<string, string>; cwd?: string } = {}
+): Promise<CommandResult> {
+  try {
+    const result = await runCommandInDaytonaWorkspace(workspace, command, args, options)
+    const fullCommand = args.length > 0 ? `${command} ${args.join(' ')}` : command
+
+    return {
+      success: result.exitCode === 0,
+      exitCode: result.exitCode,
+      output: result.output,
+      error: result.error,
+      command: fullCommand,
+    }
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Command execution failed'
+    const fullCommand = args.length > 0 ? `${command} ${args.join(' ')}` : command
+    return {
+      success: false,
+      error: errorMessage,
+      command: fullCommand,
+    }
+  }
+}
+
+// Unified command execution function that works with both Sandbox and DaytonaWorkspace
+export async function runCommand(
+  environment: Sandbox | DaytonaWorkspace,
+  command: string,
+  args: string[] = [],
+  options: { env?: Record<string, string>; cwd?: string } = {}
+): Promise<CommandResult> {
+  // Type guard to check if it's a DaytonaWorkspace
+  if ('id' in environment && 'status' in environment) {
+    return runCommandInWorkspace(environment as DaytonaWorkspace, command, args, options)
+  } else {
+    // It's a legacy Sandbox
+    return runCommandInSandbox(environment as Sandbox, command, args)
   }
 }
