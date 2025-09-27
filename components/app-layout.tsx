@@ -198,6 +198,8 @@ export function AppLayout({ children, initialSidebarWidth, initialSidebarOpen }:
       repoUrl: taskData.repoUrl,
       selectedAgent: taskData.selectedAgent,
       selectedModel: taskData.selectedModel,
+      installDependencies: false,
+      maxDuration: 5,
       status: 'pending',
       progress: 0,
       logs: [],

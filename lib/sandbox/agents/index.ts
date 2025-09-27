@@ -5,6 +5,7 @@ import { executeCodexInSandbox } from './codex'
 import { executeCursorInSandbox } from './cursor'
 import { executeOpenCodeInSandbox } from './opencode'
 import { TaskLogger } from '@/lib/utils/task-logger'
+import { DaytonaWorkspace } from '../daytona-client'
 
 export type AgentType = 'claude' | 'codex' | 'cursor' | 'opencode'
 
@@ -13,7 +14,7 @@ export type { AgentExecutionResult } from '../types'
 
 // Main agent execution function
 export async function executeAgentInSandbox(
-  sandbox: Sandbox,
+  sandbox: Sandbox | DaytonaWorkspace,
   instruction: string,
   agentType: AgentType,
   logger: TaskLogger,
