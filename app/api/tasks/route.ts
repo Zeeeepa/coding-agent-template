@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse, after } from 'next/server'
-import { Sandbox } from '@vercel/sandbox'
 import { db } from '@/lib/db/client'
 import { tasks, insertTaskSchema } from '@/lib/db/schema'
 import { generateId } from '@/lib/utils/id'
-import { createSandbox } from '@/lib/sandbox/creation'
+import { createSandbox, createDaytonaWorkspaceForTask } from '@/lib/sandbox/creation'
 import { executeAgentInSandbox, AgentType } from '@/lib/sandbox/agents'
 import { pushChangesToBranch, shutdownSandbox } from '@/lib/sandbox/git'
 import { registerSandbox, unregisterSandbox } from '@/lib/sandbox/sandbox-registry'
@@ -11,6 +10,8 @@ import { eq, desc, or } from 'drizzle-orm'
 import { createInfoLog } from '@/lib/utils/logging'
 import { createTaskLogger } from '@/lib/utils/task-logger'
 import { generateBranchName, createFallbackBranchName } from '@/lib/utils/branch-name-generator'
+import { Sandbox } from '@/lib/sandbox/types'
+import { DaytonaWorkspace } from '@/lib/sandbox/daytona-client'
 
 export async function GET() {
   try {
@@ -227,7 +228,7 @@ async function processTask(
   installDependencies: boolean = false,
   maxDuration: number = 5,
 ) {
-  let sandbox: Sandbox | null = null
+  let sandbox: Sandbox | DaytonaWorkspace | null = null
   const logger = createTaskLogger(taskId)
 
   try {
@@ -256,10 +257,42 @@ async function processTask(
       await logger.info('AI branch name not ready, will use fallback during sandbox creation')
     }
 
-    await logger.updateProgress(15, 'Creating sandbox environment...')
+    await logger.updateProgress(15, 'Creating development environment...')
 
-    // Create sandbox with progress callback and 5-minute timeout
-    const sandboxResult = await createSandbox(
+    // Determine which environment to use (Daytona by default, fallback to Vercel)
+    const useDaytona = process.env.DAYTONA_API_KEY && process.env.DAYTONA_API_KEY.trim() !== ''
+    
+    if (useDaytona) {
+      await logger.info('Using Daytona workspace environment')
+    } else {
+      await logger.info('Using Vercel sandbox environment (fallback)')
+    }
+
+    // Create environment with progress callback and timeout
+    const sandboxResult = useDaytona 
+      ? await createDaytonaWorkspaceForTask(
+          {
+            taskId,
+            repoUrl,
+            timeout: `${maxDuration}m`,
+            ports: [3000],
+            runtime: 'node22',
+            resources: { vcpus: 4 },
+            taskPrompt: prompt,
+            selectedAgent,
+            selectedModel,
+            installDependencies,
+            preDeterminedBranchName: aiBranchName || undefined,
+            onProgress: async (progress: number, message: string) => {
+              await logger.updateProgress(progress, message)
+            },
+            onCancellationCheck: async () => {
+              return await isTaskStopped(taskId)
+            },
+          },
+          logger,
+        )
+      : await createSandbox(
       {
         taskId,
         repoUrl,
@@ -307,8 +340,8 @@ async function processTask(
       return
     }
 
-    const { sandbox: createdSandbox, domain, branchName } = sandboxResult
-    sandbox = createdSandbox || null
+    const { sandbox: createdSandbox, workspace: createdWorkspace, domain, branchName } = sandboxResult
+    sandbox = createdSandbox || createdWorkspace || null
 
     // Update sandbox URL and branch name (only update branch name if not already set by AI)
     const updateData: { sandboxUrl?: string; updatedAt: Date; branchName?: string } = {

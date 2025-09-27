@@ -1,15 +1,21 @@
-import { Sandbox } from '@vercel/sandbox'
-import { runCommandInSandbox } from '../commands'
+import { Sandbox } from '../types'
+import { runCommandInSandbox, runCommand } from '../commands'
 import { AgentExecutionResult } from '../types'
 import { redactSensitiveInfo } from '@/lib/utils/logging'
 import { TaskLogger } from '@/lib/utils/task-logger'
+import { DaytonaWorkspace } from '../daytona-client'
 
 // Helper function to run command and log it
-async function runAndLogCommand(sandbox: Sandbox, command: string, args: string[], logger: TaskLogger) {
+async function runAndLogCommand(
+  sandbox: Sandbox | DaytonaWorkspace,
+  command: string,
+  args: string[],
+  logger: TaskLogger,
+) {
   const fullCommand = args.length > 0 ? `${command} ${args.join(' ')}` : command
   await logger.command(redactSensitiveInfo(fullCommand))
 
-  const result = await runCommandInSandbox(sandbox, command, args)
+  const result = await runCommand(sandbox, command, args)
 
   if (result.output && result.output.trim()) {
     await logger.info(redactSensitiveInfo(result.output.trim()))
@@ -23,7 +29,7 @@ async function runAndLogCommand(sandbox: Sandbox, command: string, args: string[
 }
 
 export async function executeCodexInSandbox(
-  sandbox: Sandbox,
+  sandbox: Sandbox | DaytonaWorkspace,
   instruction: string,
   logger: TaskLogger,
   selectedModel?: string,

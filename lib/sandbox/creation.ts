@@ -1,12 +1,13 @@
-import { Sandbox } from '@vercel/sandbox'
-import { validateEnvironmentVariables, createAuthenticatedRepoUrl } from './config'
-import { runCommandInSandbox } from './commands'
+import { validateEnvironmentVariables, createAuthenticatedRepoUrl, createDaytonaConfiguration } from './config'
+import { runCommandInSandbox, runCommandInWorkspace } from './commands'
 import { generateId } from '@/lib/utils/id'
-import { SandboxConfig, SandboxResult } from './types'
+import { SandboxConfig, SandboxResult, Sandbox } from './types'
 import { redactSensitiveInfo } from '@/lib/utils/logging'
 import { TaskLogger } from '@/lib/utils/task-logger'
 import { detectPackageManager, installDependencies } from './package-manager'
 import { registerSandbox } from './sandbox-registry'
+import { createDaytonaWorkspace, DaytonaWorkspace } from './daytona-client'
+import { createInfoLog } from '@/lib/utils/logging'
 
 // Helper function to run command and log it
 async function runAndLogCommand(sandbox: Sandbox, command: string, args: string[], logger: TaskLogger) {
@@ -512,6 +513,203 @@ export async function createSandbox(config: SandboxConfig, logger: TaskLogger): 
     return {
       success: false,
       error: errorMessage || 'Failed to create sandbox',
+    }
+  }
+}
+
+// New function for creating Daytona workspaces
+export async function createDaytonaWorkspaceForTask(config: SandboxConfig, logger: TaskLogger): Promise<SandboxResult> {
+  try {
+    await logger.info(`Repository URL: ${redactSensitiveInfo(config.repoUrl)}`)
+
+    // Check for cancellation before starting
+    if (config.onCancellationCheck && (await config.onCancellationCheck())) {
+      await logger.info('Task was cancelled before workspace creation')
+      return { success: false, cancelled: true }
+    }
+
+    // Call progress callback if provided
+    if (config.onProgress) {
+      await config.onProgress(20, 'Validating environment variables...')
+    }
+
+    // Validate required environment variables
+    const envValidation = validateEnvironmentVariables(config.selectedAgent)
+    if (!envValidation.valid) {
+      throw new Error(envValidation.error!)
+    }
+    await logger.info('Environment variables validated')
+
+    // Handle private repository authentication
+    const authenticatedRepoUrl = createAuthenticatedRepoUrl(config.repoUrl)
+    await logger.info('Added GitHub authentication to repository URL')
+
+    // For initial clone, only use existing branch names, not AI-generated ones
+    const branchNameForEnv = config.existingBranchName || config.preDeterminedBranchName || 'main'
+
+    // Create Daytona workspace configuration
+    const daytonaConfig = createDaytonaConfiguration({
+      repoUrl: authenticatedRepoUrl,
+      branchName: branchNameForEnv,
+    })
+
+    await logger.info(`Daytona config: ${JSON.stringify({
+      ...daytonaConfig,
+      gitUrl: '[REDACTED]',
+    }, null, 2)}`)
+
+    // Call progress callback before workspace creation
+    if (config.onProgress) {
+      await config.onProgress(25, 'Creating Daytona workspace...')
+    }
+
+    let workspace: DaytonaWorkspace
+    try {
+      workspace = await createDaytonaWorkspace(
+        daytonaConfig.name,
+        daytonaConfig.gitUrl,
+        daytonaConfig.branch,
+        logger
+      )
+
+      // Check for cancellation after workspace creation
+      if (config.onCancellationCheck && (await config.onCancellationCheck())) {
+        await logger.info('Task was cancelled after workspace creation')
+        return { success: false, cancelled: true }
+      }
+
+      // Call progress callback after workspace creation
+      if (config.onProgress) {
+        await config.onProgress(30, 'Workspace created, installing dependencies...')
+      }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      await logger.error(`Workspace creation failed: ${errorMessage}`)
+      throw error
+    }
+
+    // Install project dependencies (simplified for Daytona)
+    if (config.installDependencies !== false) {
+      await logger.info('Detecting project type and installing dependencies...')
+      
+      // Check for Node.js project
+      const packageJsonCheck = await runCommandInWorkspace(workspace, 'test', ['-f', 'package.json'])
+      
+      if (packageJsonCheck.success) {
+        await logger.info('package.json found, installing Node.js dependencies...')
+        
+        if (config.onProgress) {
+          await config.onProgress(35, 'Installing Node.js dependencies...')
+        }
+
+        const npmInstall = await runCommandInWorkspace(workspace, 'npm', ['install'])
+        
+        if (!npmInstall.success) {
+          await logger.info('Warning: Failed to install Node.js dependencies, but continuing with workspace setup')
+        } else {
+          await logger.info('Node.js dependencies installed successfully')
+        }
+      } else {
+        // Check for Python project
+        const requirementsTxtCheck = await runCommandInWorkspace(workspace, 'test', ['-f', 'requirements.txt'])
+        
+        if (requirementsTxtCheck.success) {
+          await logger.info('requirements.txt found, installing Python dependencies...')
+          
+          if (config.onProgress) {
+            await config.onProgress(35, 'Installing Python dependencies...')
+          }
+
+          const pipInstall = await runCommandInWorkspace(workspace, 'pip3', ['install', '-r', 'requirements.txt'])
+          
+          if (!pipInstall.success) {
+            await logger.info('Warning: Failed to install Python dependencies, but continuing with workspace setup')
+          } else {
+            await logger.info('Python dependencies installed successfully')
+          }
+        } else {
+          await logger.info('No package.json or requirements.txt found, skipping dependency installation')
+        }
+      }
+    } else {
+      await logger.info('Skipping dependency installation as requested by user')
+    }
+
+    // Configure Git user
+    await runCommandInWorkspace(workspace, 'git', ['config', 'user.name', 'Coding Agent'])
+    await runCommandInWorkspace(workspace, 'git', ['config', 'user.email', 'agent@example.com'])
+
+    // Configure Git authentication if GitHub token is available
+    if (process.env.GITHUB_TOKEN) {
+      await logger.info('Configuring Git authentication with GitHub token')
+      await runCommandInWorkspace(workspace, 'git', ['config', 'credential.helper', 'store'])
+      
+      const credentialsContent = `https://${process.env.GITHUB_TOKEN}:x-oauth-basic@github.com`
+      await runCommandInWorkspace(workspace, 'sh', ['-c', `echo "${credentialsContent}" > ~/.git-credentials`])
+    }
+
+    let branchName: string
+
+    if (config.existingBranchName) {
+      // Checkout existing branch for continuing work
+      await logger.info(`Checking out existing branch: ${config.existingBranchName}`)
+      const checkoutResult = await runCommandInWorkspace(workspace, 'git', ['checkout', config.existingBranchName])
+
+      if (!checkoutResult.success) {
+        throw new Error(`Failed to checkout existing branch ${config.existingBranchName}`)
+      }
+
+      branchName = config.existingBranchName
+    } else if (config.preDeterminedBranchName) {
+      // Use the AI-generated branch name
+      await logger.info(`Using pre-determined branch name: ${config.preDeterminedBranchName}`)
+
+      // Create new branch
+      const createBranch = await runCommandInWorkspace(workspace, 'git', ['checkout', '-b', config.preDeterminedBranchName])
+
+      if (!createBranch.success) {
+        await logger.info(`Failed to create branch ${config.preDeterminedBranchName}: ${createBranch.error}`)
+        throw new Error(`Failed to create Git branch ${config.preDeterminedBranchName}`)
+      }
+
+      await logger.info(`Successfully created branch: ${config.preDeterminedBranchName}`)
+      branchName = config.preDeterminedBranchName
+    } else {
+      // Fallback: Create a timestamp-based branch name
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5)
+      const suffix = generateId()
+      branchName = `agent/${timestamp}-${suffix}`
+
+      await logger.info(`No predetermined branch name, using timestamp-based: ${branchName}`)
+      const createBranch = await runCommandInWorkspace(workspace, 'git', ['checkout', '-b', branchName])
+
+      if (!createBranch.success) {
+        await logger.info(`Failed to create branch ${branchName}: ${createBranch.error}`)
+        throw new Error(`Failed to create Git branch ${branchName}`)
+      }
+
+      await logger.info(`Successfully created fallback branch: ${branchName}`)
+    }
+
+    return {
+      success: true,
+      workspace,
+      domain: workspace.url,
+      branchName,
+      logs: [
+        createInfoLog(`Daytona workspace created: ${workspace.id}`),
+        createInfoLog(`Branch: ${branchName}`),
+        createInfoLog(`Workspace URL: ${workspace.url || 'N/A'}`),
+      ],
+    }
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+    console.error('Daytona workspace creation error:', error)
+    await logger.error(`Error: ${errorMessage}`)
+
+    return {
+      success: false,
+      error: errorMessage || 'Failed to create Daytona workspace',
     }
   }
 }

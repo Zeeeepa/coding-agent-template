@@ -19,6 +19,11 @@ export function validateEnvironmentVariables(selectedAgent: string = 'claude') {
     errors.push('GITHUB_TOKEN is required for repository access')
   }
 
+  // Check for Daytona API key
+  if (!process.env.DAYTONA_API_KEY) {
+    errors.push('DAYTONA_API_KEY is required for workspace creation')
+  }
+
   return {
     valid: errors.length === 0,
     error: errors.length > 0 ? errors.join(', ') : undefined,
@@ -62,5 +67,18 @@ export function createSandboxConfiguration(config: {
     ports: config.ports || [3000],
     runtime: config.runtime || 'node22',
     resources: config.resources || { vcpus: 4 },
+  }
+}
+
+export function createDaytonaConfiguration(config: {
+  repoUrl: string
+  branchName?: string
+  target?: string
+}) {
+  return {
+    name: `workspace-${Date.now()}`,
+    gitUrl: config.repoUrl,
+    branch: config.branchName || 'main',
+    target: config.target || process.env.DAYTONA_TARGET || 'us',
   }
 }
