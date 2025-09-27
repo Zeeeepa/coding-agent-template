@@ -107,10 +107,10 @@ export function TaskForm({
 
   // Options state - initialize with server values or cookies
   const [installDependencies, setInstallDependenciesState] = useState(
-    initialInstallDependencies !== undefined ? initialInstallDependencies : getInstallDependencies()
+    initialInstallDependencies !== undefined ? initialInstallDependencies : getInstallDependencies(),
   )
   const [maxDuration, setMaxDurationState] = useState(
-    initialMaxDuration !== undefined ? initialMaxDuration : getMaxDuration()
+    initialMaxDuration !== undefined ? initialMaxDuration : getMaxDuration(),
   )
   const [showOptionsDialog, setShowOptionsDialog] = useState(false)
 

@@ -43,7 +43,11 @@ export async function POST(request: NextRequest) {
       .values({
         ...validatedData,
         id: taskId, // Ensure id is always present
-        logs: [createInfoLog(`Task created with ${validatedData.selectedAgent} agent for repository: ${validatedData.repoUrl}`)],
+        logs: [
+          createInfoLog(
+            `Task created with ${validatedData.selectedAgent} agent for repository: ${validatedData.repoUrl}`,
+          ),
+        ],
       })
       .returning()
 

@@ -95,7 +95,7 @@ export class DaytonaClient {
 
       // Prepare the command with options
       let finalCommand = command
-      
+
       // Add environment variables if provided
       if (options?.env && Object.keys(options.env).length > 0) {
         const envVars = Object.entries(options.env)
@@ -103,7 +103,7 @@ export class DaytonaClient {
           .join(' ')
         finalCommand = `${envVars} ${command}`
       }
-      
+
       // Add working directory if provided
       if (options?.cwd) {
         finalCommand = `cd "${options.cwd}" && ${finalCommand}`
@@ -170,6 +170,7 @@ export class DaytonaClient {
       const workspace = await this.getWorkspace(workspaceId)
       return workspace?.status === 'running'
     } catch (error) {
+      console.error('Error checking workspace status:', error)
       return false
     }
   }
@@ -180,8 +181,13 @@ export class DaytonaClient {
   async getWorkspaceUrl(workspaceId: string, port: number = 3000): Promise<string | null> {
     try {
       const sandbox = await this.daytona.get(workspaceId)
-      // The URL might be available in the sandbox properties
-      return (sandbox as { url?: string }).url || null
+      // The URL might be available in the sandbox properties, potentially with port
+      const baseUrl = (sandbox as { url?: string }).url
+      if (baseUrl && port !== 3000) {
+        // If a custom port is specified, try to construct the URL with that port
+        return baseUrl.replace(/:\d+/, `:${port}`)
+      }
+      return baseUrl || null
     } catch (error) {
       console.error('Failed to get sandbox URL:', error)
       return null

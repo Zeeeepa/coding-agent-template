@@ -219,12 +219,12 @@ export async function executeCursorInSandbox(
       write(chunk: Buffer | string, encoding: BufferEncoding, callback: WriteCallback) {
         const errorData = chunk.toString()
         capturedError += errorData
-        
+
         // Log stderr data in real-time
         if (logger && errorData.trim()) {
           logger.error(`[STDERR] ${redactSensitiveInfo(errorData.trim())}`)
         }
-        
+
         callback()
       },
     })
@@ -237,11 +237,21 @@ export async function executeCursorInSandbox(
     }
     args.push(instruction)
 
-    await runCommandInSandbox(sandbox, '/home/vercel-sandbox/.local/bin/cursor-agent', args, {
+    // Note: captureStdout and captureStderr are prepared for future stream capture implementation
+    // Currently using the existing logging mechanism in runCommandInSandbox
+    const result = await runCommandInSandbox(sandbox, '/home/vercel-sandbox/.local/bin/cursor-agent', args, {
       env: {
         CURSOR_API_KEY: process.env.CURSOR_API_KEY!,
       },
     })
+    
+    // Process the result through our capture streams for consistent logging
+    if (result.output) {
+      captureStdout.write(result.output)
+    }
+    if (result.error) {
+      captureStderr.write(result.error)
+    }
 
     if (logger) {
       await logger.info('Cursor command started with output capture, monitoring for completion...')

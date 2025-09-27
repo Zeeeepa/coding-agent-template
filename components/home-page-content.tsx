@@ -32,7 +32,7 @@ export function HomePageContent({
     if (!initialSelectedOwner && !initialSelectedRepo) {
       const cookieOwner = getSelectedOwner()
       const cookieRepo = getSelectedRepo()
-      
+
       if (cookieOwner && cookieOwner !== selectedOwner) {
         setSelectedOwnerState(cookieOwner)
       }
