@@ -1,6 +1,11 @@
 export function validateEnvironmentVariables(selectedAgent: string = 'claude') {
   const errors: string[] = []
 
+  // Check for Daytona API key (required for all agents)
+  if (!process.env.DAYTONA_API_KEY) {
+    errors.push('DAYTONA_API_KEY is required for sandbox creation')
+  }
+
   // Check for required environment variables based on selected agent
   if (selectedAgent === 'claude' && !process.env.ANTHROPIC_API_KEY) {
     errors.push('ANTHROPIC_API_KEY is required for Claude CLI')
@@ -44,23 +49,57 @@ export function createAuthenticatedRepoUrl(repoUrl: string): string {
   }
 }
 
-export function createSandboxConfiguration(config: {
+export interface DaytonaConfigOptions {
   repoUrl: string
+  branchName: string
   timeout?: string
   ports?: number[]
   runtime?: string
   resources?: { vcpus?: number }
-  branchName?: string
-}) {
+}
+
+export function createDaytonaConfiguration(options: DaytonaConfigOptions) {
+  const {
+    repoUrl,
+    branchName,
+    timeout,
+    ports = [3000],
+    runtime = 'node22',
+    resources = { vcpus: 4 }
+  } = options
+
+  // Detect language from runtime or repository
+  let language = 'javascript'
+  if (runtime?.includes('python')) {
+    language = 'python'
+  } else if (runtime?.includes('go')) {
+    language = 'go'
+  } else if (runtime?.includes('rust')) {
+    language = 'rust'
+  }
+
+  // Parse timeout to seconds
+  const timeoutSeconds = timeout 
+    ? parseInt(timeout.replace(/\D/g, '')) * 60 
+    : 5 * 60 // 5 minutes default
+
   return {
-    template: 'node',
-    git: {
-      url: config.repoUrl,
-      branch: config.branchName || 'main',
+    gitUrl: repoUrl,
+    branch: branchName,
+    language,
+    ports,
+    timeout: timeoutSeconds,
+    resources: {
+      vcpus: resources.vcpus || 4,
+      memory: '8GB', // Default memory
     },
-    timeout: config.timeout || '20m',
-    ports: config.ports || [3000],
-    runtime: config.runtime || 'node22',
-    resources: config.resources || { vcpus: 4 },
+    envVars: {
+      GITHUB_TOKEN: process.env.GITHUB_TOKEN || '',
+      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
+      ANTHROPIC_BASE_URL: process.env.ANTHROPIC_BASE_URL || '',
+      ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN || '',
+    }
   }
 }
+
+

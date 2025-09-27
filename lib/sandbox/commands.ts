@@ -1,4 +1,4 @@
-import { Sandbox } from '@vercel/sandbox'
+import { getDaytonaClient } from './daytona-client'
 
 export interface CommandResult {
   success: boolean
@@ -15,37 +15,27 @@ export interface StreamingCommandOptions {
   onJsonLine?: (jsonData: unknown) => void
 }
 
-export async function runCommandInSandbox(
-  sandbox: Sandbox,
+export async function runCommandInWorkspace(
+  workspaceId: string,
   command: string,
   args: string[] = [],
+  options?: {
+    cwd?: string
+    env?: Record<string, string>
+    timeout?: number
+  }
 ): Promise<CommandResult> {
   try {
-    const result = await sandbox.runCommand(command, args)
-
-    // Handle stdout and stderr properly
-    let stdout = ''
-    let stderr = ''
-
-    try {
-      stdout = await (result.stdout as () => Promise<string>)()
-    } catch {
-      // Failed to read stdout
-    }
-
-    try {
-      stderr = await (result.stderr as () => Promise<string>)()
-    } catch {
-      // Failed to read stderr
-    }
-
+    const daytonaClient = getDaytonaClient()
     const fullCommand = args.length > 0 ? `${command} ${args.join(' ')}` : command
+    
+    const result = await daytonaClient.executeCommand(workspaceId, fullCommand, options)
 
     return {
-      success: result.exitCode === 0,
+      success: result.success,
       exitCode: result.exitCode,
-      output: stdout,
-      error: stderr,
+      output: result.output,
+      error: result.error,
       command: fullCommand,
     }
   } catch (error: unknown) {
@@ -59,68 +49,56 @@ export async function runCommandInSandbox(
   }
 }
 
-export async function runStreamingCommandInSandbox(
-  sandbox: Sandbox,
+export async function runStreamingCommandInWorkspace(
+  workspaceId: string,
   command: string,
   args: string[] = [],
   options: StreamingCommandOptions = {},
+  commandOptions?: {
+    cwd?: string
+    env?: Record<string, string>
+    timeout?: number
+  }
 ): Promise<CommandResult> {
   try {
-    const result = await sandbox.runCommand(command, args)
+    const daytonaClient = getDaytonaClient()
+    const fullCommand = args.length > 0 ? `${command} ${args.join(' ')}` : command
+    
+    const result = await daytonaClient.executeCommand(workspaceId, fullCommand, commandOptions)
 
-    let stdout = ''
-    let stderr = ''
+    // Process output for streaming callbacks
+    if (result.output && options.onStdout) {
+      options.onStdout(result.output)
+    }
 
-    try {
-      // stdout is always a function that returns a promise
-      if (typeof result.stdout === 'function') {
-        stdout = await result.stdout()
-        // Process the complete output for JSON lines
-        if (options.onJsonLine) {
-          const lines = stdout.split('\n')
-          for (const line of lines) {
-            const trimmedLine = line.trim()
-            if (trimmedLine) {
-              try {
-                const jsonData = JSON.parse(trimmedLine)
-                options.onJsonLine(jsonData)
-              } catch {
-                // Not valid JSON, ignore
-              }
-            }
+    if (result.error && options.onStderr) {
+      options.onStderr(result.error)
+    }
+
+    // Process JSON lines if callback provided
+    if (result.output && options.onJsonLine) {
+      const lines = result.output.split('\n')
+      for (const line of lines) {
+        const trimmedLine = line.trim()
+        if (trimmedLine) {
+          try {
+            const jsonData = JSON.parse(trimmedLine)
+            options.onJsonLine(jsonData)
+          } catch {
+            // Not valid JSON, ignore
           }
         }
-        if (options.onStdout) {
-          options.onStdout(stdout)
-        }
       }
-    } catch {
-      // Failed to read stdout
     }
-
-    try {
-      // stderr is always a function that returns a promise
-      if (typeof result.stderr === 'function') {
-        stderr = await result.stderr()
-        if (options.onStderr) {
-          options.onStderr(stderr)
-        }
-      }
-    } catch {
-      // Failed to read stderr
-    }
-
-    const fullCommand = args.length > 0 ? `${command} ${args.join(' ')}` : command
-
     return {
-      success: result.exitCode === 0,
+      success: result.success,
       exitCode: result.exitCode,
-      output: stdout,
-      error: stderr,
+      output: result.output,
+      error: result.error,
       command: fullCommand,
     }
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Failed to run streaming command in sandbox'
+    const errorMessage = error instanceof Error ? error.message : 'Failed to run streaming command in workspace'
     const fullCommand = args.length > 0 ? `${command} ${args.join(' ')}` : command
     return {
       success: false,
@@ -129,3 +107,7 @@ export async function runStreamingCommandInSandbox(
     }
   }
 }
+
+// Legacy function name for backward compatibility
+export const runCommandInSandbox = runCommandInWorkspace
+export const runStreamingCommandInSandbox = runStreamingCommandInWorkspace
