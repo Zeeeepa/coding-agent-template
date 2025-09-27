@@ -76,7 +76,10 @@ export async function shutdownSandbox(
         await daytonaClient.deleteWorkspace(sandbox.id)
         return { success: true }
       } catch (error) {
-        console.log('Daytona workspace cleanup completed (may have already been removed):', error instanceof Error ? error.message : 'Unknown error')
+        console.log(
+          'Daytona workspace cleanup completed (may have already been removed):',
+          error instanceof Error ? error.message : 'Unknown error',
+        )
         return { success: true }
       }
     }
@@ -92,7 +95,10 @@ export async function shutdownSandbox(
         await runCommandInSandbox(sandbox as Sandbox, 'pkill', ['-f', 'pnpm'])
       } catch (killError) {
         // Best effort - don't fail if we can't kill processes
-        console.log('Best effort process cleanup completed:', killError instanceof Error ? killError.message : 'Unknown error')
+        console.log(
+          'Best effort process cleanup completed:',
+          killError instanceof Error ? killError.message : 'Unknown error',
+        )
       }
     }
 

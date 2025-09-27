@@ -316,10 +316,12 @@ async function processTask(
     const { workspace: createdSandbox, domain, branchName } = sandboxResult
     sandbox = createdSandbox || null
 
-    // Register the sandbox in the global registry for tracking
-    if (sandbox && 'runCommand' in sandbox) {
-      registerSandbox(taskId, sandbox as Sandbox)
-      await logger.info('Sandbox registered in global registry')
+    // Register the sandbox in the global registry for tracking (only for Vercel sandboxes)
+    if (sandbox && 'runCommand' in sandbox && 'sandboxId' in sandbox) {
+      registerSandbox(taskId, sandbox as unknown as Sandbox)
+      await logger.info('Vercel sandbox registered in global registry')
+    } else if (sandbox) {
+      await logger.info('Daytona workspace created (not registered in Vercel sandbox registry)')
     }
 
     // Update sandbox URL and branch name (only update branch name if not already set by AI)
