@@ -65,7 +65,9 @@ export async function pushChangesToBranch(
   }
 }
 
-export async function shutdownSandbox(sandbox?: Sandbox | DaytonaWorkspace): Promise<{ success: boolean; error?: string }> {
+export async function shutdownSandbox(
+  sandbox?: Sandbox | DaytonaWorkspace,
+): Promise<{ success: boolean; error?: string }> {
   try {
     // Handle Daytona workspace shutdown
     if (sandbox && 'id' in sandbox && typeof sandbox.id === 'string' && sandbox.id.includes('-')) {
@@ -100,6 +102,7 @@ export async function shutdownSandbox(sandbox?: Sandbox | DaytonaWorkspace): Pro
     return { success: true }
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Failed to shutdown sandbox'
+    console.error('Error shutting down sandbox:', errorMessage)
     return { success: false, error: errorMessage }
   }
 }

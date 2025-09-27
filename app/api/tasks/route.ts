@@ -43,6 +43,7 @@ export async function POST(request: NextRequest) {
       .values({
         ...validatedData,
         id: taskId, // Ensure id is always present
+        logs: [createInfoLog(`Task created with ${validatedData.selectedAgent} agent for repository: ${validatedData.repoUrl}`)],
       })
       .returning()
 
@@ -310,6 +311,12 @@ async function processTask(
 
     const { workspace: createdSandbox, domain, branchName } = sandboxResult
     sandbox = createdSandbox || null
+
+    // Register the sandbox in the global registry for tracking
+    if (sandbox && 'runCommand' in sandbox) {
+      registerSandbox(taskId, sandbox as Sandbox)
+      await logger.info('Sandbox registered in global registry')
+    }
 
     // Update sandbox URL and branch name (only update branch name if not already set by AI)
     const updateData: { sandboxUrl?: string; updatedAt: Date; branchName?: string } = {

@@ -6,7 +6,12 @@ import { TaskLogger } from '@/lib/utils/task-logger'
 import { DaytonaWorkspace } from '../daytona-client'
 
 // Helper function to run command and collect logs
-async function runAndLogCommand(sandbox: Sandbox | DaytonaWorkspace, command: string, args: string[], logger: TaskLogger) {
+async function runAndLogCommand(
+  sandbox: Sandbox | DaytonaWorkspace,
+  command: string,
+  args: string[],
+  logger: TaskLogger,
+) {
   const fullCommand = args.length > 0 ? `${command} ${args.join(' ')}` : command
   const redactedCommand = redactSensitiveInfo(fullCommand)
 

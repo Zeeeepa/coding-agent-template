@@ -35,7 +35,7 @@ export class DaytonaClient {
     if (!finalApiKey) {
       throw new Error('DAYTONA_API_KEY is required')
     }
-    
+
     this.daytona = new Daytona({
       apiKey: finalApiKey,
       serverUrl: serverUrl || process.env.DAYTONA_SERVER_URL || 'https://app.daytona.io/api',
@@ -93,8 +93,24 @@ export class DaytonaClient {
     try {
       const sandbox = await this.daytona.get(workspaceId)
 
+      // Prepare the command with options
+      let finalCommand = command
+      
+      // Add environment variables if provided
+      if (options?.env && Object.keys(options.env).length > 0) {
+        const envVars = Object.entries(options.env)
+          .map(([key, value]) => `${key}="${value}"`)
+          .join(' ')
+        finalCommand = `${envVars} ${command}`
+      }
+      
+      // Add working directory if provided
+      if (options?.cwd) {
+        finalCommand = `cd "${options.cwd}" && ${finalCommand}`
+      }
+
       // Use the built-in sandbox.process.executeCommand() as per official docs
-      const response = await sandbox.process.executeCommand(command)
+      const response = await sandbox.process.executeCommand(finalCommand)
 
       return {
         success: response.exitCode === 0,

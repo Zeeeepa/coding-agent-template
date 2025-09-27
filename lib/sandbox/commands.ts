@@ -124,12 +124,12 @@ export async function runCommandInSandbox(
   if (typeof sandbox === 'string') {
     return runCommandInWorkspace(sandbox, command, args, options)
   }
-  
+
   // If it's a Daytona workspace with an ID
   if (sandbox && typeof sandbox === 'object' && 'id' in sandbox && typeof sandbox.id === 'string') {
     return runCommandInWorkspace(sandbox.id, command, args, options)
   }
-  
+
   // If it's a Vercel Sandbox, we need to handle it differently
   // For now, return a mock result since Vercel Sandbox has different API
   if (sandbox && typeof sandbox === 'object' && 'sandboxId' in sandbox) {
@@ -140,7 +140,7 @@ export async function runCommandInSandbox(
       command: args.length > 0 ? `${command} ${args.join(' ')}` : command,
     }
   }
-  
+
   return {
     success: false,
     error: 'Invalid sandbox type provided',

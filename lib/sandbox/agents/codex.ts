@@ -6,7 +6,12 @@ import { TaskLogger } from '@/lib/utils/task-logger'
 import { DaytonaWorkspace } from '../daytona-client'
 
 // Helper function to run command and log it
-async function runAndLogCommand(sandbox: Sandbox | DaytonaWorkspace, command: string, args: string[], logger: TaskLogger) {
+async function runAndLogCommand(
+  sandbox: Sandbox | DaytonaWorkspace,
+  command: string,
+  args: string[],
+  logger: TaskLogger,
+) {
   const fullCommand = args.length > 0 ? `${command} ${args.join(' ')}` : command
   await logger.command(redactSensitiveInfo(fullCommand))
 
@@ -114,17 +119,12 @@ export async function executeCodexInSandbox(
     // or require specific authentication setup. Let's try a more comprehensive approach
 
     // First, check if we can get version info
-    const versionTestResult = await runCommandInSandbox(
-      sandbox,
-      'codex',
-      ['--version'],
-      {
-        env: {
-          OPENAI_API_KEY: process.env.OPENAI_API_KEY!,
-          HOME: '/home/vercel-sandbox',
-        },
-      }
-    )
+    const versionTestResult = await runCommandInSandbox(sandbox, 'codex', ['--version'], {
+      env: {
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY!,
+        HOME: '/home/vercel-sandbox',
+      },
+    })
 
     if (logger) {
       await logger.info(`Codex CLI version test: ${versionTestResult.exitCode === 0 ? 'SUCCESS' : 'FAILED'}`)
@@ -167,25 +167,19 @@ log_requests = true
 `
     }
 
-    const configSetupResult = await runCommandInSandbox(
-      sandbox,
-      'sh',
-      ['-c', `mkdir -p ~/.codex && cat > ~/.codex/config.toml << 'EOF'\n${configToml}EOF`]
-    )
+    const configSetupResult = await runCommandInSandbox(sandbox, 'sh', [
+      '-c',
+      `mkdir -p ~/.codex && cat > ~/.codex/config.toml << 'EOF'\n${configToml}EOF`,
+    ])
 
     if (logger) {
       await logger.info(`Codex config setup: ${configSetupResult.exitCode === 0 ? 'SUCCESS' : 'FAILED'}`)
     }
 
     // Debug: Check if the config file was created correctly
-    const configCheckResult = await runCommandInSandbox(
-      sandbox,
-      'cat',
-      ['~/.codex/config.toml'],
-      {
-        env: { HOME: '/home/vercel-sandbox' },
-      }
-    )
+    const configCheckResult = await runCommandInSandbox(sandbox, 'cat', ['~/.codex/config.toml'], {
+      env: { HOME: '/home/vercel-sandbox' },
+    })
 
     if (logger && configCheckResult.exitCode === 0) {
       await logger.info('Config file contents verified')

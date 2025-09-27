@@ -22,12 +22,25 @@ export function HomePageContent({
   initialMaxDuration = 5,
 }: HomePageContentProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [selectedOwner, setSelectedOwnerState] = useState(initialSelectedOwner)
-  const [selectedRepo, setSelectedRepoState] = useState(initialSelectedRepo)
+  const [selectedOwner, setSelectedOwnerState] = useState(initialSelectedOwner || getSelectedOwner())
+  const [selectedRepo, setSelectedRepoState] = useState(initialSelectedRepo || getSelectedRepo())
   const router = useRouter()
   const { refreshTasks, addTaskOptimistically } = useTasks()
 
-  // No longer need the useEffect for loading cookies - they come from server
+  // Use useEffect to sync with cookies when component mounts if no initial values provided
+  useEffect(() => {
+    if (!initialSelectedOwner && !initialSelectedRepo) {
+      const cookieOwner = getSelectedOwner()
+      const cookieRepo = getSelectedRepo()
+      
+      if (cookieOwner && cookieOwner !== selectedOwner) {
+        setSelectedOwnerState(cookieOwner)
+      }
+      if (cookieRepo && cookieRepo !== selectedRepo) {
+        setSelectedRepoState(cookieRepo)
+      }
+    }
+  }, [initialSelectedOwner, initialSelectedRepo, selectedOwner, selectedRepo])
 
   // Wrapper functions to update both state and cookies
   const handleOwnerChange = (owner: string) => {

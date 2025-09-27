@@ -105,9 +105,13 @@ export function TaskForm({
   const [repos, setRepos] = useState<GitHubRepo[]>([])
   const [loadingRepos, setLoadingRepos] = useState(false)
 
-  // Options state - initialize with server values
-  const [installDependencies, setInstallDependenciesState] = useState(initialInstallDependencies)
-  const [maxDuration, setMaxDurationState] = useState(initialMaxDuration)
+  // Options state - initialize with server values or cookies
+  const [installDependencies, setInstallDependenciesState] = useState(
+    initialInstallDependencies !== undefined ? initialInstallDependencies : getInstallDependencies()
+  )
+  const [maxDuration, setMaxDurationState] = useState(
+    initialMaxDuration !== undefined ? initialMaxDuration : getMaxDuration()
+  )
   const [showOptionsDialog, setShowOptionsDialog] = useState(false)
 
   // Ref for the textarea to focus it programmatically
@@ -463,7 +467,7 @@ export function TaskForm({
 
                 <Button
                   type="submit"
-                  disabled={isSubmitting || !prompt.trim() || !selectedOwner || !selectedRepo}
+                  disabled={isSubmitting || loadingRepos || !prompt.trim() || !selectedOwner || !selectedRepo}
                   size="sm"
                   className="rounded-full h-8 w-8 p-0"
                 >

@@ -6,7 +6,12 @@ import { TaskLogger } from '@/lib/utils/task-logger'
 import { DaytonaWorkspace } from '../daytona-client'
 
 // Helper function to run command and collect
-async function runAndLogCommand(sandbox: Sandbox | DaytonaWorkspace, command: string, args: string[], logger: TaskLogger) {
+async function runAndLogCommand(
+  sandbox: Sandbox | DaytonaWorkspace,
+  command: string,
+  args: string[],
+  logger: TaskLogger,
+) {
   const fullCommand = args.length > 0 ? `${command} ${args.join(' ')}` : command
   await logger.command(redactSensitiveInfo(fullCommand))
 
@@ -190,6 +195,11 @@ export async function executeCursorInSandbox(
         const data = chunk.toString()
         capturedOutput += data
 
+        // Log stdout data in real-time
+        if (logger && data.trim()) {
+          logger.info(`[STDOUT] ${redactSensitiveInfo(data.trim())}`)
+        }
+
         // Check if we got the completion JSON
         if (
           data.includes('"type":"result"') &&
@@ -207,7 +217,14 @@ export async function executeCursorInSandbox(
 
     const captureStderr = new Writable({
       write(chunk: Buffer | string, encoding: BufferEncoding, callback: WriteCallback) {
-        capturedError += chunk.toString()
+        const errorData = chunk.toString()
+        capturedError += errorData
+        
+        // Log stderr data in real-time
+        if (logger && errorData.trim()) {
+          logger.error(`[STDERR] ${redactSensitiveInfo(errorData.trim())}`)
+        }
+        
         callback()
       },
     })
@@ -220,16 +237,11 @@ export async function executeCursorInSandbox(
     }
     args.push(instruction)
 
-    await runCommandInSandbox(
-      sandbox,
-      '/home/vercel-sandbox/.local/bin/cursor-agent',
-      args,
-      {
-        env: {
-          CURSOR_API_KEY: process.env.CURSOR_API_KEY!,
-        },
-      }
-    )
+    await runCommandInSandbox(sandbox, '/home/vercel-sandbox/.local/bin/cursor-agent', args, {
+      env: {
+        CURSOR_API_KEY: process.env.CURSOR_API_KEY!,
+      },
+    })
 
     if (logger) {
       await logger.info('Cursor command started with output capture, monitoring for completion...')
