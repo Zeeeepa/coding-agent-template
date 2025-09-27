@@ -1,6 +1,6 @@
 # Coding Agent Template
 
-A template for building AI-powered coding agents that supports Claude Code, OpenAI's Codex CLI, Cursor CLI, and opencode with [Vercel Sandbox](https://vercel.com/docs/vercel-sandbox) to automatically execute coding tasks on your repositories.
+A template for building AI-powered coding agents that supports Claude Code, OpenAI's Codex CLI, Cursor CLI, and opencode with [Daytona](https://daytona.io) workspaces and [Vercel Sandbox](https://vercel.com/docs/vercel-sandbox) to automatically execute coding tasks on your repositories.
 
 ![Coding Agent Template Screenshot](screenshot.png)
 
@@ -13,11 +13,11 @@ You can deploy your own version of the coding agent template to Vercel with one 
 ## Features
 
 - **Multi-Agent Support**: Choose from Claude Code, OpenAI Codex CLI, Cursor CLI, or opencode to execute coding tasks
-- **Vercel Sandbox**: Runs code in isolated, secure sandboxes ([docs](https://vercel.com/docs/vercel-sandbox))
+- **Dual Environment Support**: Runs code in [Daytona](https://daytona.io) workspaces or [Vercel Sandbox](https://vercel.com/docs/vercel-sandbox) - automatically detects based on configuration
 - **AI Gateway Integration**: Built for seamless integration with [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) for model routing and observability
 - **AI-Generated Branch Names**: Automatically generates descriptive Git branch names using AI SDK 5 + AI Gateway
 - **Task Management**: Track task progress with real-time updates
-- **Persistent Storage**: Tasks stored in Neon Postgres database
+- **Persistent Storage**: Tasks stored in PostgreSQL database
 - **Git Integration**: Automatically creates branches and commits changes
 - **Modern UI**: Clean, responsive interface built with Next.js and Tailwind CSS
 
@@ -47,17 +47,26 @@ cp .env.example .env.local
 Required environment variables:
 
 - `POSTGRES_URL`: Your PostgreSQL connection string (works with any PostgreSQL database)
-- `ANTHROPIC_API_KEY`: Your Anthropic API key for Claude
+- `ANTHROPIC_API_KEY`: Your Anthropic API key for Claude (or use `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN` for Z.ai)
 - `GITHUB_TOKEN`: GitHub personal access token (for repository access)
-- `VERCEL_TEAM_ID`: Your Vercel team ID
-- `VERCEL_PROJECT_ID`: Your Vercel project ID
-- `VERCEL_TOKEN`: Your Vercel API token
 - `AI_GATEWAY_API_KEY`: Your AI Gateway API key for AI-generated branch names and Codex agent support
+
+Environment-specific variables (choose one):
+
+**For Daytona (recommended):**
+- `DAYTONA_API_KEY`: Your Daytona API key for workspace creation
+
+**For Vercel Sandbox:**
+- `VERCEL_TEAM_ID`: Your Vercel team ID
+- `VERCEL_PROJECT_ID`: Your Vercel project ID  
+- `VERCEL_TOKEN`: Your Vercel API token
 
 Optional environment variables:
 
 - `CURSOR_API_KEY`: For Cursor agent support
 - `NPM_TOKEN`: For private npm packages
+- `ANTHROPIC_BASE_URL`: Custom Anthropic API base URL (e.g., for Z.ai: `https://api.z.ai/api/anthropic`)
+- `ANTHROPIC_AUTH_TOKEN`: Custom auth token when using alternative Anthropic-compatible APIs
 
 ### 4. Set up the database
 
@@ -87,27 +96,38 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 1. **Task Creation**: When you submit a task, it's stored in the database
 2. **AI Branch Name Generation**: AI SDK 5 + AI Gateway automatically generates a descriptive branch name based on your task (non-blocking using Next.js 15's `after()`)
-3. **Sandbox Setup**: A Vercel sandbox is created with your repository
+3. **Environment Setup**: 
+   - **Daytona**: Creates a cloud development workspace with your repository (if `DAYTONA_API_KEY` is configured)
+   - **Vercel Sandbox**: Creates a secure sandbox environment (fallback if Daytona is not configured)
 4. **Agent Execution**: Your chosen coding agent (Claude Code, Codex CLI, Cursor CLI, or opencode) analyzes your prompt and makes changes
 5. **Git Operations**: Changes are committed and pushed to the AI-generated branch
-6. **Cleanup**: The sandbox is shut down to free resources
+6. **Cleanup**: The workspace/sandbox is shut down to free resources
 
 ## Environment Variables
 
 ### Required
 
 - `POSTGRES_URL`: PostgreSQL connection string
-- `ANTHROPIC_API_KEY`: Claude API key
+- `ANTHROPIC_API_KEY`: Claude API key (or use `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN` for Z.ai)
 - `GITHUB_TOKEN`: GitHub token for repository access
+- `AI_GATEWAY_API_KEY`: AI Gateway API key for branch name generation and Codex agent support
+
+### Environment-Specific (choose one)
+
+**For Daytona (recommended):**
+- `DAYTONA_API_KEY`: Daytona API key for workspace creation
+
+**For Vercel Sandbox:**
 - `VERCEL_TEAM_ID`: Vercel team ID for sandbox creation
 - `VERCEL_PROJECT_ID`: Vercel project ID for sandbox creation
 - `VERCEL_TOKEN`: Vercel API token for sandbox creation
-- `AI_GATEWAY_API_KEY`: AI Gateway API key for branch name generation and Codex agent support
 
 ### Optional
 
 - `CURSOR_API_KEY`: Cursor agent API key
 - `NPM_TOKEN`: NPM token for private packages
+- `ANTHROPIC_BASE_URL`: Custom Anthropic API base URL (e.g., `https://api.z.ai/api/anthropic`)
+- `ANTHROPIC_AUTH_TOKEN`: Custom auth token for alternative Anthropic-compatible APIs
 
 ## AI Branch Name Generation
 
@@ -133,7 +153,9 @@ The system automatically generates descriptive Git branch names using AI SDK 5 a
 - **Database**: PostgreSQL with Drizzle ORM
 - **AI SDK**: AI SDK 5 with Vercel AI Gateway integration
 - **AI Agents**: Claude Code, OpenAI Codex CLI, Cursor CLI, opencode
-- **Sandbox**: [Vercel Sandbox](https://vercel.com/docs/vercel-sandbox)
+- **Development Environments**: 
+  - [Daytona](https://daytona.io) workspaces (recommended)
+  - [Vercel Sandbox](https://vercel.com/docs/vercel-sandbox) (fallback)
 - **Git**: Automated branching and commits with AI-generated branch names
 
 ## Development
@@ -164,6 +186,34 @@ pnpm build
 pnpm start
 ```
 
+## Migrating to Daytona
+
+This template now supports both Daytona workspaces and Vercel Sandbox environments. To migrate from Vercel Sandbox to Daytona:
+
+### 1. Get Daytona API Key
+
+1. Sign up for [Daytona](https://daytona.io)
+2. Generate an API key from your Daytona dashboard
+3. Add `DAYTONA_API_KEY` to your environment variables
+
+### 2. Update Environment Variables
+
+The system automatically detects which environment to use:
+
+- **Daytona**: Used when `DAYTONA_API_KEY` is present and not empty
+- **Vercel Sandbox**: Used as fallback when Daytona is not configured
+
+### 3. Benefits of Daytona
+
+- **Better Performance**: Cloud development workspaces with dedicated resources
+- **Persistent Environments**: Workspaces can be reused across tasks
+- **Enhanced Security**: Isolated cloud environments with better access controls
+- **Cost Efficiency**: Pay-per-use model with automatic resource management
+
+### 4. Backward Compatibility
+
+The template maintains full backward compatibility with Vercel Sandbox. Existing deployments will continue to work without any changes.
+
 ## Contributing
 
 1. Fork the repository
@@ -177,5 +227,6 @@ pnpm start
 - **Environment Variables**: Never commit `.env` files to version control. All sensitive data should be stored in environment variables.
 - **API Keys**: Rotate your API keys regularly and use the principle of least privilege.
 - **Database Access**: Ensure your PostgreSQL database is properly secured with strong credentials.
-- **Vercel Sandbox**: Sandboxes are isolated but ensure you're not exposing sensitive data in logs or outputs.
+- **Development Environments**: Both Daytona workspaces and Vercel sandboxes are isolated, but ensure you're not exposing sensitive data in logs or outputs.
 - **GitHub Token**: Use a personal access token with minimal required permissions for repository access.
+- **Daytona Security**: Daytona workspaces provide enhanced security with isolated cloud environments and access controls.
