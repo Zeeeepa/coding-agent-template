@@ -94,7 +94,7 @@ export async function createSandbox(config: SandboxConfig, logger: TaskLogger): 
         name: `coding-task-${config.taskId}`,
         gitUrl: authenticatedRepoUrl,
         branch: branchNameForEnv || 'main',
-        language: daytonaConfig.language,
+        language: daytonaConfig.language as 'typescript' | 'python' | 'javascript',
         envVars: daytonaConfig.envVars,
         timeout: daytonaConfig.timeout,
       })

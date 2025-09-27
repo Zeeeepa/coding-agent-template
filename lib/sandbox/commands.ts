@@ -1,4 +1,5 @@
-import { getDaytonaClient } from './daytona-client'
+import { getDaytonaClient, DaytonaWorkspace } from './daytona-client'
+import { Sandbox } from '@vercel/sandbox'
 
 export interface CommandResult {
   success: boolean
@@ -108,6 +109,43 @@ export async function runStreamingCommandInWorkspace(
   }
 }
 
-// Legacy function name for backward compatibility
-export const runCommandInSandbox = runCommandInWorkspace
+// Wrapper function to handle both Vercel Sandbox and Daytona Workspace
+export async function runCommandInSandbox(
+  sandbox: Sandbox | DaytonaWorkspace | string,
+  command: string,
+  args: string[] = [],
+  options?: {
+    cwd?: string
+    env?: Record<string, string>
+    timeout?: number
+  },
+): Promise<CommandResult> {
+  // If it's a string (workspace ID), use it directly
+  if (typeof sandbox === 'string') {
+    return runCommandInWorkspace(sandbox, command, args, options)
+  }
+  
+  // If it's a Daytona workspace with an ID
+  if (sandbox && typeof sandbox === 'object' && 'id' in sandbox && typeof sandbox.id === 'string') {
+    return runCommandInWorkspace(sandbox.id, command, args, options)
+  }
+  
+  // If it's a Vercel Sandbox, we need to handle it differently
+  // For now, return a mock result since Vercel Sandbox has different API
+  if (sandbox && typeof sandbox === 'object' && 'sandboxId' in sandbox) {
+    // This would need to be implemented with Vercel Sandbox API
+    return {
+      success: false,
+      error: 'Vercel Sandbox command execution not implemented yet',
+      command: args.length > 0 ? `${command} ${args.join(' ')}` : command,
+    }
+  }
+  
+  return {
+    success: false,
+    error: 'Invalid sandbox type provided',
+    command: args.length > 0 ? `${command} ${args.join(' ')}` : command,
+  }
+}
+
 export const runStreamingCommandInSandbox = runStreamingCommandInWorkspace

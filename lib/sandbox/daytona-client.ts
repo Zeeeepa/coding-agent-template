@@ -31,10 +31,15 @@ export class DaytonaClient {
 
   constructor(apiKey?: string, serverUrl?: string, target?: string) {
     // Use environment variables by default as per actual SDK implementation
+    const finalApiKey = apiKey || process.env.DAYTONA_API_KEY
+    if (!finalApiKey) {
+      throw new Error('DAYTONA_API_KEY is required')
+    }
+    
     this.daytona = new Daytona({
-      apiKey: apiKey || process.env.DAYTONA_API_KEY,
+      apiKey: finalApiKey,
       serverUrl: serverUrl || process.env.DAYTONA_SERVER_URL || 'https://app.daytona.io/api',
-      target: target || process.env.DAYTONA_TARGET || 'us',
+      target: (target || process.env.DAYTONA_TARGET || 'us') as 'us' | 'eu',
     })
   }
 
@@ -93,8 +98,8 @@ export class DaytonaClient {
 
       return {
         success: response.exitCode === 0,
-        output: response.result || response.stdout,
-        error: response.stderr,
+        output: response.result,
+        error: response.exitCode !== 0 ? 'Command failed' : undefined,
         exitCode: response.exitCode,
       }
     } catch (error) {
@@ -160,7 +165,7 @@ export class DaytonaClient {
     try {
       const sandbox = await this.daytona.get(workspaceId)
       // The URL might be available in the sandbox properties
-      return sandbox.url || null
+      return (sandbox as { url?: string }).url || null
     } catch (error) {
       console.error('Failed to get sandbox URL:', error)
       return null

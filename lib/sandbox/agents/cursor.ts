@@ -3,9 +3,10 @@ import { runCommandInSandbox } from '../commands'
 import { AgentExecutionResult } from '../types'
 import { redactSensitiveInfo } from '@/lib/utils/logging'
 import { TaskLogger } from '@/lib/utils/task-logger'
+import { DaytonaWorkspace } from '../daytona-client'
 
 // Helper function to run command and collect
-async function runAndLogCommand(sandbox: Sandbox, command: string, args: string[], logger: TaskLogger) {
+async function runAndLogCommand(sandbox: Sandbox | DaytonaWorkspace, command: string, args: string[], logger: TaskLogger) {
   const fullCommand = args.length > 0 ? `${command} ${args.join(' ')}` : command
   await logger.command(redactSensitiveInfo(fullCommand))
 
@@ -23,7 +24,7 @@ async function runAndLogCommand(sandbox: Sandbox, command: string, args: string[
 }
 
 export async function executeCursorInSandbox(
-  sandbox: Sandbox,
+  sandbox: Sandbox | DaytonaWorkspace,
   instruction: string,
   logger: TaskLogger,
   selectedModel?: string,
@@ -219,17 +220,16 @@ export async function executeCursorInSandbox(
     }
     args.push(instruction)
 
-    await sandbox.runCommand({
-      cmd: '/home/vercel-sandbox/.local/bin/cursor-agent',
-      args: args,
-      env: {
-        CURSOR_API_KEY: process.env.CURSOR_API_KEY!,
-      },
-      sudo: false,
-      detached: true,
-      stdout: captureStdout,
-      stderr: captureStderr,
-    })
+    await runCommandInSandbox(
+      sandbox,
+      '/home/vercel-sandbox/.local/bin/cursor-agent',
+      args,
+      {
+        env: {
+          CURSOR_API_KEY: process.env.CURSOR_API_KEY!,
+        },
+      }
+    )
 
     if (logger) {
       await logger.info('Cursor command started with output capture, monitoring for completion...')

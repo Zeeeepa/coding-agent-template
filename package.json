@@ -17,6 +17,7 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@daytonaio/sdk": "^0.9.2",
     "@neondatabase/serverless": "^0.10.1",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-avatar": "^1.1.10",
@@ -29,7 +30,7 @@
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-tabs": "^1.1.13",
     "@types/js-cookie": "^3.0.6",
-    "@daytonaio/sdk": "^0.9.2",
+    "@vercel/sandbox": "^0.0.21",
     "ai": "5.0.51",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
