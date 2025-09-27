@@ -1,4 +1,4 @@
-import { Daytona } from '@daytonaio/sdk'
+import { Daytona, Workspace, Process } from '@daytonaio/sdk'
 
 export interface DaytonaWorkspace {
   id: string
@@ -7,6 +7,7 @@ export interface DaytonaWorkspace {
   url?: string
   gitUrl?: string
   branch?: string
+  workspace?: Workspace
 }
 
 export interface DaytonaCommandResult {
@@ -20,20 +21,18 @@ export interface DaytonaCreateOptions {
   name: string
   gitUrl: string
   branch?: string
-  language?: 'typescript' | 'python' | 'node'
+  language?: 'typescript' | 'python' | 'javascript'
   envVars?: Record<string, string>
   timeout?: number
 }
 
 export class DaytonaClient {
   private daytona: Daytona
-  private apiKey: string
 
-  constructor(apiKey: string) {
-    this.apiKey = apiKey
+  constructor(apiKey: string, serverUrl?: string) {
     this.daytona = new Daytona({
       apiKey: apiKey,
-      // Use default API URL and target
+      serverUrl: serverUrl || process.env.DAYTONA_SERVER_URL || 'https://api.daytona.io',
     })
   }
 
@@ -42,25 +41,26 @@ export class DaytonaClient {
    */
   async createWorkspace(options: DaytonaCreateOptions): Promise<DaytonaWorkspace> {
     try {
-      const sandbox = await this.daytona.create({
-        language: options.language || 'typescript',
+      const workspace = await this.daytona.create({
+        id: options.name,
+        language: options.language || 'javascript',
         envVars: options.envVars || {},
-        // Add git configuration if provided
-        ...(options.gitUrl && {
-          git: {
-            url: options.gitUrl,
-            branch: options.branch || 'main'
-          }
-        })
+        // Add git repository configuration
+        repository: options.gitUrl ? {
+          url: options.gitUrl,
+          branch: options.branch || 'main'
+        } : undefined,
+        timeout: options.timeout,
       })
 
       return {
-        id: sandbox.id,
+        id: workspace.id,
         name: options.name,
         status: 'running',
-        url: sandbox.url,
+        url: undefined, // Will be available after workspace starts
         gitUrl: options.gitUrl,
-        branch: options.branch
+        branch: options.branch,
+        workspace: workspace
       }
     } catch (error) {
       console.error('Failed to create Daytona workspace:', error)
@@ -81,14 +81,14 @@ export class DaytonaClient {
     }
   ): Promise<DaytonaCommandResult> {
     try {
-      const sandbox = await this.daytona.getSandbox(workspaceId)
+      const workspace = await this.daytona.get(workspaceId)
       
-      const response = await sandbox.process.executeCommand(
-        command,
-        options?.cwd || '~',
-        options?.env,
-        options?.timeout
-      )
+      // Use the Process class to execute commands
+      const process = new Process(workspace)
+      const response = await process.executeCommand(command, {
+        cwd: options?.cwd,
+        env: options?.env,
+      })
 
       return {
         success: response.exitCode === 0,
@@ -111,13 +111,15 @@ export class DaytonaClient {
    */
   async getWorkspace(workspaceId: string): Promise<DaytonaWorkspace | null> {
     try {
-      const sandbox = await this.daytona.getSandbox(workspaceId)
+      const workspace = await this.daytona.get(workspaceId)
+      const info = await workspace.info()
       
       return {
-        id: sandbox.id,
-        name: sandbox.name || workspaceId,
+        id: workspace.id,
+        name: workspace.id,
         status: 'running', // Assume running if we can get it
-        url: sandbox.url
+        url: undefined, // URL might be available in info
+        workspace: workspace
       }
     } catch (error) {
       console.error('Failed to get workspace:', error)
@@ -130,7 +132,8 @@ export class DaytonaClient {
    */
   async deleteWorkspace(workspaceId: string): Promise<boolean> {
     try {
-      await this.daytona.delete(workspaceId)
+      const workspace = await this.daytona.get(workspaceId)
+      await this.daytona.remove(workspace)
       return true
     } catch (error) {
       console.error('Failed to delete workspace:', error)
@@ -155,8 +158,10 @@ export class DaytonaClient {
    */
   async getWorkspaceUrl(workspaceId: string, port: number = 3000): Promise<string | null> {
     try {
-      const sandbox = await this.daytona.getSandbox(workspaceId)
-      return sandbox.url || null
+      const workspace = await this.daytona.get(workspaceId)
+      const info = await workspace.info()
+      // The URL might be available in the workspace info
+      return info?.url || null
     } catch (error) {
       console.error('Failed to get workspace URL:', error)
       return null
@@ -170,10 +175,17 @@ let daytonaClient: DaytonaClient | null = null
 export function getDaytonaClient(): DaytonaClient {
   if (!daytonaClient) {
     const apiKey = process.env.DAYTONA_API_KEY
+    const serverUrl = process.env.DAYTONA_SERVER_URL
+    
     if (!apiKey) {
       throw new Error('DAYTONA_API_KEY environment variable is required')
     }
-    daytonaClient = new DaytonaClient(apiKey)
+    
+    if (!serverUrl) {
+      throw new Error('DAYTONA_SERVER_URL environment variable is required')
+    }
+    
+    daytonaClient = new DaytonaClient(apiKey, serverUrl)
   }
   return daytonaClient
 }

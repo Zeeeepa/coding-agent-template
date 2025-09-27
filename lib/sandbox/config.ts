@@ -1,9 +1,13 @@
 export function validateEnvironmentVariables(selectedAgent: string = 'claude') {
   const errors: string[] = []
 
-  // Check for Daytona API key (required for all agents)
+  // Check for Daytona API key and server URL (required for all agents)
   if (!process.env.DAYTONA_API_KEY) {
     errors.push('DAYTONA_API_KEY is required for sandbox creation')
+  }
+  
+  if (!process.env.DAYTONA_SERVER_URL) {
+    errors.push('DAYTONA_SERVER_URL is required for sandbox creation')
   }
 
   // Check for required environment variables based on selected agent
@@ -101,5 +105,3 @@ export function createDaytonaConfiguration(options: DaytonaConfigOptions) {
     }
   }
 }
-
-
