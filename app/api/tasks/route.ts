@@ -10,6 +10,7 @@ import { registerSandbox, unregisterSandbox } from '@/lib/sandbox/sandbox-regist
 import { eq, desc, or } from 'drizzle-orm'
 import { createInfoLog } from '@/lib/utils/logging'
 import { createTaskLogger } from '@/lib/utils/task-logger'
+import { DaytonaWorkspace } from '@/lib/sandbox/daytona-client'
 import { generateBranchName, createFallbackBranchName } from '@/lib/utils/branch-name-generator'
 
 export async function GET() {
@@ -42,6 +43,11 @@ export async function POST(request: NextRequest) {
       .values({
         ...validatedData,
         id: taskId, // Ensure id is always present
+        logs: [
+          createInfoLog(
+            `Task created with ${validatedData.selectedAgent} agent for repository: ${validatedData.repoUrl}`,
+          ),
+        ],
       })
       .returning()
 
@@ -227,7 +233,7 @@ async function processTask(
   installDependencies: boolean = false,
   maxDuration: number = 5,
 ) {
-  let sandbox: Sandbox | null = null
+  let sandbox: Sandbox | DaytonaWorkspace | null = null
   const logger = createTaskLogger(taskId)
 
   try {
@@ -297,9 +303,9 @@ async function processTask(
     if (await isTaskStopped(taskId)) {
       await logger.info('Task was stopped during sandbox creation')
       // Clean up sandbox if it was created
-      if (sandboxResult.sandbox) {
+      if (sandboxResult.workspace) {
         try {
-          await shutdownSandbox(sandboxResult.sandbox)
+          await shutdownSandbox(sandboxResult.workspace)
         } catch (error) {
           console.error('Failed to cleanup sandbox after stop:', error)
         }
@@ -307,8 +313,16 @@ async function processTask(
       return
     }
 
-    const { sandbox: createdSandbox, domain, branchName } = sandboxResult
+    const { workspace: createdSandbox, domain, branchName } = sandboxResult
     sandbox = createdSandbox || null
+
+    // Register the sandbox in the global registry for tracking (only for Vercel sandboxes)
+    if (sandbox && 'runCommand' in sandbox && 'sandboxId' in sandbox) {
+      registerSandbox(taskId, sandbox as unknown as Sandbox)
+      await logger.info('Vercel sandbox registered in global registry')
+    } else if (sandbox) {
+      await logger.info('Daytona workspace created (not registered in Vercel sandbox registry)')
+    }
 
     // Update sandbox URL and branch name (only update branch name if not already set by AI)
     const updateData: { sandboxUrl?: string; updatedAt: Date; branchName?: string } = {
@@ -359,7 +373,7 @@ async function processTask(
     }
 
     const agentResult = await Promise.race([
-      executeAgentInSandbox(sandbox, prompt, selectedAgent as AgentType, logger, selectedModel),
+      executeAgentInSandbox(sandbox as unknown as Sandbox, prompt, selectedAgent as AgentType, logger, selectedModel),
       agentTimeoutPromise,
     ])
 
@@ -377,7 +391,7 @@ async function processTask(
 
       // Push changes to branch
       const commitMessage = `${prompt.substring(0, 50)}${prompt.length > 50 ? '...' : ''}`
-      const pushResult = await pushChangesToBranch(sandbox!, branchName!, commitMessage, logger)
+      const pushResult = await pushChangesToBranch(sandbox! as unknown as Sandbox, branchName!, commitMessage, logger)
 
       // Unregister and shutdown sandbox
       unregisterSandbox(taskId)

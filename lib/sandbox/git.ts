@@ -1,6 +1,7 @@
 import { Sandbox } from '@vercel/sandbox'
 import { runCommandInSandbox } from './commands'
 import { TaskLogger } from '@/lib/utils/task-logger'
+import { DaytonaWorkspace, getDaytonaClient } from './daytona-client'
 
 export async function pushChangesToBranch(
   sandbox: Sandbox,
@@ -64,20 +65,40 @@ export async function pushChangesToBranch(
   }
 }
 
-export async function shutdownSandbox(sandbox?: Sandbox): Promise<{ success: boolean; error?: string }> {
+export async function shutdownSandbox(
+  sandbox?: Sandbox | DaytonaWorkspace,
+): Promise<{ success: boolean; error?: string }> {
   try {
-    // If we have a sandbox reference, try to kill any running processes
+    // Handle Daytona workspace shutdown
+    if (sandbox && 'id' in sandbox && typeof sandbox.id === 'string' && sandbox.id.includes('-')) {
+      try {
+        const daytonaClient = getDaytonaClient()
+        await daytonaClient.deleteWorkspace(sandbox.id)
+        return { success: true }
+      } catch (error) {
+        console.log(
+          'Daytona workspace cleanup completed (may have already been removed):',
+          error instanceof Error ? error.message : 'Unknown error',
+        )
+        return { success: true }
+      }
+    }
+
+    // Handle Vercel Sandbox shutdown
     if (sandbox) {
       try {
         // Try to kill any long-running processes that might be active
-        await runCommandInSandbox(sandbox, 'pkill', ['-f', 'node'])
-        await runCommandInSandbox(sandbox, 'pkill', ['-f', 'python'])
-        await runCommandInSandbox(sandbox, 'pkill', ['-f', 'npm'])
-        await runCommandInSandbox(sandbox, 'pkill', ['-f', 'yarn'])
-        await runCommandInSandbox(sandbox, 'pkill', ['-f', 'pnpm'])
+        await runCommandInSandbox(sandbox as Sandbox, 'pkill', ['-f', 'node'])
+        await runCommandInSandbox(sandbox as Sandbox, 'pkill', ['-f', 'python'])
+        await runCommandInSandbox(sandbox as Sandbox, 'pkill', ['-f', 'npm'])
+        await runCommandInSandbox(sandbox as Sandbox, 'pkill', ['-f', 'yarn'])
+        await runCommandInSandbox(sandbox as Sandbox, 'pkill', ['-f', 'pnpm'])
       } catch (killError) {
         // Best effort - don't fail if we can't kill processes
-        console.log('Best effort process cleanup completed')
+        console.log(
+          'Best effort process cleanup completed:',
+          killError instanceof Error ? killError.message : 'Unknown error',
+        )
       }
     }
 
@@ -87,6 +108,7 @@ export async function shutdownSandbox(sandbox?: Sandbox): Promise<{ success: boo
     return { success: true }
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Failed to shutdown sandbox'
+    console.error('Error shutting down sandbox:', errorMessage)
     return { success: false, error: errorMessage }
   }
 }

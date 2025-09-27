@@ -160,7 +160,7 @@ export function TaskDetails({ task }: TaskDetailsProps) {
       case 'error':
         return <AlertCircle className="h-4 w-4" />
       case 'stopped':
-        return <AlertCircle className="h-4 w-4" />
+        return <Square className="h-4 w-4" />
       default:
         return <Clock className="h-4 w-4" />
     }

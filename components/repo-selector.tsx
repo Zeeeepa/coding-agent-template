@@ -87,6 +87,10 @@ export function RepoSelector({
             name: user.name || user.login,
             avatar_url: user.avatar_url,
           }
+          // Add personal account to ownersList first
+          if (personalAccount) {
+            ownersList.push(personalAccount)
+          }
         }
 
         // Get organizations and sort them
@@ -99,16 +103,12 @@ export function RepoSelector({
         // Sort organizations by login name
         organizations.sort((a, b) => a.login.localeCompare(b.login, undefined, { sensitivity: 'base' }))
 
-        // Put personal account first, then sorted organizations
-        const sortedOwners: GitHubOwner[] = []
-        if (personalAccount) {
-          sortedOwners.push(personalAccount)
-        }
-        sortedOwners.push(...organizations)
+        // Add sorted organizations to ownersList
+        ownersList.push(...organizations)
 
-        setOwners(sortedOwners)
+        setOwners(ownersList)
         // Cache the owners
-        sessionStorage.setItem('github-owners', JSON.stringify(sortedOwners))
+        sessionStorage.setItem('github-owners', JSON.stringify(ownersList))
       } catch (error) {
         console.error('Error loading owners:', error)
       } finally {
@@ -182,7 +182,7 @@ export function RepoSelector({
         }
       }, 100)
     }
-  }, [repoDropdownOpen, repos?.length])
+  }, [repoDropdownOpen, repos])
 
   // Filter repos based on search
   const filteredRepos = (repos || []).filter(

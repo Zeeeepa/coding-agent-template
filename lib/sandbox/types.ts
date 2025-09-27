@@ -1,5 +1,5 @@
-import { Sandbox } from '@vercel/sandbox'
 import { LogEntry } from '@/lib/db/schema'
+import { DaytonaWorkspace } from './daytona-client'
 
 export interface SandboxConfig {
   taskId: string
@@ -22,11 +22,12 @@ export interface SandboxConfig {
 
 export interface SandboxResult {
   success: boolean
-  sandbox?: Sandbox
+  workspace?: DaytonaWorkspace
   domain?: string
   branchName?: string
   error?: string
   cancelled?: boolean
+  logs: string[]
 }
 
 export interface AgentExecutionResult {

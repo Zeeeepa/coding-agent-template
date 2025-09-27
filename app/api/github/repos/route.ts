@@ -2,15 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
   try {
-    if (!process.env.GITHUB_TOKEN) {
-      return NextResponse.json({ error: 'GitHub token not configured' }, { status: 500 })
-    }
-
     const { searchParams } = new URL(request.url)
     const owner = searchParams.get('owner')
 
     if (!owner) {
       return NextResponse.json({ error: 'Owner parameter is required' }, { status: 400 })
+    }
+
+    if (!process.env.GITHUB_TOKEN) {
+      return NextResponse.json({ error: 'GitHub token not configured' }, { status: 500 })
     }
 
     // First, get the authenticated user to check if this is their repos
