@@ -1,4 +1,4 @@
-import { Daytona, Workspace, Process } from '@daytonaio/sdk'
+import { Daytona, Workspace } from '@daytonaio/sdk'
 
 export interface DaytonaWorkspace {
   id: string
@@ -29,42 +29,47 @@ export interface DaytonaCreateOptions {
 export class DaytonaClient {
   private daytona: Daytona
 
-  constructor(apiKey: string, serverUrl?: string) {
+  constructor(apiKey?: string, serverUrl?: string, target?: string) {
+    // Use environment variables by default as per actual SDK implementation
     this.daytona = new Daytona({
-      apiKey: apiKey,
-      serverUrl: serverUrl || process.env.DAYTONA_SERVER_URL || 'https://api.daytona.io',
+      apiKey: apiKey || process.env.DAYTONA_API_KEY,
+      serverUrl: serverUrl || process.env.DAYTONA_SERVER_URL || 'https://app.daytona.io/api',
+      target: target || process.env.DAYTONA_TARGET || 'us',
     })
   }
 
   /**
-   * Create a new Daytona workspace
+   * Create a new Daytona sandbox (workspace)
    */
   async createWorkspace(options: DaytonaCreateOptions): Promise<DaytonaWorkspace> {
     try {
-      const workspace = await this.daytona.create({
-        id: options.name,
-        language: options.language || 'javascript',
+      // Create sandbox using official SDK parameters with async=true for immediate return
+      const sandbox = await this.daytona.create({
+        language: options.language || 'typescript',
         envVars: options.envVars || {},
-        // Add git repository configuration
-        repository: options.gitUrl ? {
-          url: options.gitUrl,
-          branch: options.branch || 'main'
-        } : undefined,
-        timeout: options.timeout,
+        async: true, // Return immediately without waiting for full startup
       })
 
+      // If git repository is provided, clone it after sandbox creation
+      if (options.gitUrl) {
+        await sandbox.process.executeCommand(`git clone ${options.gitUrl} /workspace`)
+        if (options.branch && options.branch !== 'main') {
+          await sandbox.process.executeCommand(`cd /workspace && git checkout ${options.branch}`)
+        }
+      }
+
       return {
-        id: workspace.id,
+        id: sandbox.id,
         name: options.name,
         status: 'running',
-        url: undefined, // Will be available after workspace starts
+        url: undefined, // Will be available after sandbox starts
         gitUrl: options.gitUrl,
         branch: options.branch,
-        workspace: workspace
+        workspace: sandbox,
       }
     } catch (error) {
-      console.error('Failed to create Daytona workspace:', error)
-      throw new Error(`Failed to create workspace: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      console.error('Failed to create Daytona sandbox:', error)
+      throw new Error(`Failed to create sandbox: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
@@ -78,65 +83,60 @@ export class DaytonaClient {
       cwd?: string
       env?: Record<string, string>
       timeout?: number
-    }
+    },
   ): Promise<DaytonaCommandResult> {
     try {
-      const workspace = await this.daytona.get(workspaceId)
-      
-      // Use the Process class to execute commands
-      const process = new Process(workspace)
-      const response = await process.executeCommand(command, {
-        cwd: options?.cwd,
-        env: options?.env,
-      })
+      const sandbox = await this.daytona.get(workspaceId)
+
+      // Use the built-in sandbox.process.executeCommand() as per official docs
+      const response = await sandbox.process.executeCommand(command)
 
       return {
         success: response.exitCode === 0,
-        output: response.stdout,
+        output: response.result || response.stdout,
         error: response.stderr,
-        exitCode: response.exitCode
+        exitCode: response.exitCode,
       }
     } catch (error) {
       console.error('Failed to execute command:', error)
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
-        exitCode: 1
+        exitCode: 1,
       }
     }
   }
 
   /**
-   * Get workspace information
+   * Get sandbox (workspace) information
    */
   async getWorkspace(workspaceId: string): Promise<DaytonaWorkspace | null> {
     try {
-      const workspace = await this.daytona.get(workspaceId)
-      const info = await workspace.info()
-      
+      const sandbox = await this.daytona.get(workspaceId)
+
       return {
-        id: workspace.id,
-        name: workspace.id,
+        id: sandbox.id,
+        name: sandbox.id,
         status: 'running', // Assume running if we can get it
-        url: undefined, // URL might be available in info
-        workspace: workspace
+        url: undefined, // URL might be available in sandbox info
+        workspace: sandbox,
       }
     } catch (error) {
-      console.error('Failed to get workspace:', error)
+      console.error('Failed to get sandbox:', error)
       return null
     }
   }
 
   /**
-   * Delete a workspace
+   * Delete a sandbox (workspace)
    */
   async deleteWorkspace(workspaceId: string): Promise<boolean> {
     try {
-      const workspace = await this.daytona.get(workspaceId)
-      await this.daytona.remove(workspace)
+      const sandbox = await this.daytona.get(workspaceId)
+      await this.daytona.remove(sandbox)
       return true
     } catch (error) {
-      console.error('Failed to delete workspace:', error)
+      console.error('Failed to delete sandbox:', error)
       return false
     }
   }
@@ -154,16 +154,15 @@ export class DaytonaClient {
   }
 
   /**
-   * Get workspace URL for accessing the environment
+   * Get sandbox URL for accessing the environment
    */
   async getWorkspaceUrl(workspaceId: string, port: number = 3000): Promise<string | null> {
     try {
-      const workspace = await this.daytona.get(workspaceId)
-      const info = await workspace.info()
-      // The URL might be available in the workspace info
-      return info?.url || null
+      const sandbox = await this.daytona.get(workspaceId)
+      // The URL might be available in the sandbox properties
+      return sandbox.url || null
     } catch (error) {
-      console.error('Failed to get workspace URL:', error)
+      console.error('Failed to get sandbox URL:', error)
       return null
     }
   }
@@ -176,15 +175,15 @@ export function getDaytonaClient(): DaytonaClient {
   if (!daytonaClient) {
     const apiKey = process.env.DAYTONA_API_KEY
     const serverUrl = process.env.DAYTONA_SERVER_URL
-    
+
     if (!apiKey) {
       throw new Error('DAYTONA_API_KEY environment variable is required')
     }
-    
+
     if (!serverUrl) {
       throw new Error('DAYTONA_SERVER_URL environment variable is required')
     }
-    
+
     daytonaClient = new DaytonaClient(apiKey, serverUrl)
   }
   return daytonaClient

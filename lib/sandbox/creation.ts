@@ -30,7 +30,7 @@ async function runAndLogCommand(workspace: DaytonaWorkspace, command: string, ar
 
 export async function createSandbox(config: SandboxConfig, logger: TaskLogger): Promise<SandboxResult> {
   const logs: string[] = []
-  
+
   try {
     await logger.info(`Repository URL: ${redactSensitiveInfo(config.repoUrl)}`)
 
@@ -89,7 +89,7 @@ export async function createSandbox(config: SandboxConfig, logger: TaskLogger): 
     let workspace: DaytonaWorkspace
     try {
       const daytonaClient = getDaytonaClient()
-      
+
       workspace = await daytonaClient.createWorkspace({
         name: `coding-task-${config.taskId}`,
         gitUrl: authenticatedRepoUrl,
@@ -98,7 +98,7 @@ export async function createSandbox(config: SandboxConfig, logger: TaskLogger): 
         envVars: daytonaConfig.envVars,
         timeout: daytonaConfig.timeout,
       })
-      
+
       await logger.info('Daytona workspace created successfully')
       logs.push('Workspace created successfully')
 
@@ -160,7 +160,7 @@ export async function createSandbox(config: SandboxConfig, logger: TaskLogger): 
 
         // Install dependencies using npm (simplest approach for Daytona)
         const installResult = await runCommandInWorkspace(workspace.id, 'npm', ['install'])
-        
+
         if (installResult.success) {
           await logger.info('Node.js dependencies installed successfully')
           logs.push('Dependencies installed successfully')

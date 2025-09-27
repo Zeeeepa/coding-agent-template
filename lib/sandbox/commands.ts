@@ -23,12 +23,12 @@ export async function runCommandInWorkspace(
     cwd?: string
     env?: Record<string, string>
     timeout?: number
-  }
+  },
 ): Promise<CommandResult> {
   try {
     const daytonaClient = getDaytonaClient()
     const fullCommand = args.length > 0 ? `${command} ${args.join(' ')}` : command
-    
+
     const result = await daytonaClient.executeCommand(workspaceId, fullCommand, options)
 
     return {
@@ -58,12 +58,12 @@ export async function runStreamingCommandInWorkspace(
     cwd?: string
     env?: Record<string, string>
     timeout?: number
-  }
+  },
 ): Promise<CommandResult> {
   try {
     const daytonaClient = getDaytonaClient()
     const fullCommand = args.length > 0 ? `${command} ${args.join(' ')}` : command
-    
+
     const result = await daytonaClient.executeCommand(workspaceId, fullCommand, commandOptions)
 
     // Process output for streaming callbacks

@@ -5,7 +5,7 @@ export function validateEnvironmentVariables(selectedAgent: string = 'claude') {
   if (!process.env.DAYTONA_API_KEY) {
     errors.push('DAYTONA_API_KEY is required for sandbox creation')
   }
-  
+
   if (!process.env.DAYTONA_SERVER_URL) {
     errors.push('DAYTONA_SERVER_URL is required for sandbox creation')
   }
@@ -63,14 +63,7 @@ export interface DaytonaConfigOptions {
 }
 
 export function createDaytonaConfiguration(options: DaytonaConfigOptions) {
-  const {
-    repoUrl,
-    branchName,
-    timeout,
-    ports = [3000],
-    runtime = 'node22',
-    resources = { vcpus: 4 }
-  } = options
+  const { repoUrl, branchName, timeout, ports = [3000], runtime = 'node22', resources = { vcpus: 4 } } = options
 
   // Detect language from runtime or repository
   let language = 'javascript'
@@ -83,9 +76,7 @@ export function createDaytonaConfiguration(options: DaytonaConfigOptions) {
   }
 
   // Parse timeout to seconds
-  const timeoutSeconds = timeout 
-    ? parseInt(timeout.replace(/\D/g, '')) * 60 
-    : 5 * 60 // 5 minutes default
+  const timeoutSeconds = timeout ? parseInt(timeout.replace(/\D/g, '')) * 60 : 5 * 60 // 5 minutes default
 
   return {
     gitUrl: repoUrl,
@@ -102,6 +93,6 @@ export function createDaytonaConfiguration(options: DaytonaConfigOptions) {
       ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
       ANTHROPIC_BASE_URL: process.env.ANTHROPIC_BASE_URL || '',
       ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN || '',
-    }
+    },
   }
 }
