@@ -85,8 +85,9 @@ export function createDaytonaConfiguration(options: DaytonaConfigOptions) {
     ports,
     timeout: timeoutSeconds,
     resources: {
-      vcpus: resources.vcpus || 4,
-      memory: '8GB', // Default memory
+      cpu: Math.min(resources.vcpus || 1, 4),  // Cap at 4 CPUs
+      memory: 2,   // 2GB memory (conservative default)
+      disk: 5      // 5GB disk (well within 30GB quota)
     },
     envVars: {
       GITHUB_TOKEN: process.env.GITHUB_TOKEN || '',
